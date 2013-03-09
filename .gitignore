@@ -1,0 +1,3 @@
+/bin/*
+gen/*
+gen/ltg/android_xmppbase/BuildConfig.java
