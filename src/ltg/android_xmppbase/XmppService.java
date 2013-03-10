@@ -8,9 +8,11 @@ import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPException;
 import org.jivesoftware.smack.filter.MessageTypeFilter;
 import org.jivesoftware.smack.filter.PacketFilter;
+import org.jivesoftware.smack.filter.PacketTypeFilter;
 import org.jivesoftware.smack.packet.Message;
 import org.jivesoftware.smack.packet.Packet;
 import org.jivesoftware.smack.util.StringUtils;
+import org.jivesoftware.smackx.muc.MultiUserChat;
 
 import android.app.IntentService;
 import android.content.Intent;
@@ -29,14 +31,10 @@ import android.widget.Toast;
 
 public class XmppService extends IntentService {
 
-	public static final String SEND_MESSAGE = "SEND_MESSAGE";
-
+	public static final String SEND_MESSAGE_CHAT = "SEND_MESSAGE";
 	public static final String ACTIVITY_MESSAGER = "ACTIVITY_MESSAGER";
-
 	public static final String CONNECT = "CONNECT";
-
 	public static final String XMPP_MESSAGE = "XMPP_MESSAGE";
-
 	private final IBinder xmppBinder = new XmppBinder();
 
 	private static final String TAG = "XmppService";
@@ -46,11 +44,18 @@ public class XmppService extends IntentService {
 	public static final String CHAT_ACTION_RECEIVED_MESSAGE = "CHAT_ACTION";
 
 	public static final String MESSAGE_TEXT_CHAT = "MESSAGE_TEXT";
+
+	public static final String GROUP_CHAT = "GROUP_CHAT";
+	public static final String SINGLE_CHAT = "SINGLE_CHAT";
+	public static final String CHAT_TYPE = "CHAT_TYPE";
+	public static final String GROUP_CHAT_NAME = "GROUP_CHAT_NAME";
+
 	private static volatile Looper serviceLooper;
 	private static volatile ServiceHandler serviceHandler;
 	private Messenger activityMessenger;
 	private XMPPConnection xmppConnection;
 	private long handlerThreadId;
+	private MultiUserChat groupChat;
 
 	public XmppService() {
 		super("XMPP SERVICE");
@@ -70,7 +75,7 @@ public class XmppService extends IntentService {
 
 	Handler connectionHandler = new Handler() {
 		public void handleMessage(android.os.Message msg) {
-			doLogin();
+
 		};
 	};
 
@@ -87,19 +92,29 @@ public class XmppService extends IntentService {
 		Bundle extras = intent.getExtras();
 		if (action.equals(CONNECT)) {
 
-			Object extra = extras.get(ACTIVITY_MESSAGER);
-			if (extra != null) {
-				activityMessenger = (Messenger) extra;
+			Object messExtra = extras.get(ACTIVITY_MESSAGER);
+			String chatTypeExtra = (String) extras.get(CHAT_TYPE);
+			if (messExtra != null) {
+				activityMessenger = (Messenger) messExtra;
 			}
+			
 			doConnection();
-		} else if (action.equals(SEND_MESSAGE)) {
+			doLogin();
+
+			if (chatTypeExtra.equals(GROUP_CHAT)) {
+				String groupChat = (String) extras.get(GROUP_CHAT_NAME);
+				doGroupChat(groupChat);
+			}
+
+		} else if (action.equals(SEND_MESSAGE_CHAT)) {
 			Object extra = extras.get(MESSAGE_TEXT_CHAT);
 			if (extra != null) {
 				String text = (String) extra;
 
 				Log.i("XMPPChatDemoActivity", "Sending text " + text + " to "
 						+ "aperritano");
-				Message msg = new Message("aperritano@" + xmppConnection.getHost(), Message.Type.chat);
+				Message msg = new Message("aperritano@"
+						+ xmppConnection.getHost(), Message.Type.chat);
 				msg.setBody(text);
 				if (xmppConnection != null) {
 					xmppConnection.sendPacket(msg);
@@ -127,12 +142,79 @@ public class XmppService extends IntentService {
 		return START_STICKY;
 	}
 
-	private class ConnectionTask extends AsyncTask<Void, Void, Void> {
-		@Override
-		protected Void doInBackground(Void... params) {
-			Log.i(TAG, "Connection in doInBackground connecting...");
-			doConnection();
-			return null;
+	public void doGroupChat(String chatroom) {
+		if (xmppConnection.isAuthenticated() && chatroom != null) {
+			// Initialize and join chatRoom
+			groupChat = new MultiUserChat(xmppConnection, chatroom);
+			try {
+				groupChat.join(xmppConnection.getUser());
+			} catch (XMPPException e) {
+				Log.e(TAG, "ERROR CONNECTING TO GROUP CHAT", e);
+			}
+
+			PacketListener pl = new PacketListener() {
+				@Override
+				public void processPacket(Packet packet) {
+					Message message = (Message) packet;
+					processMessage(message);
+				}
+			};
+			xmppConnection.addPacketListener(pl, new PacketTypeFilter(
+					Message.class));
+
+		}
+	}
+
+	public void doSingleChat() {
+		PacketListener pl = new PacketListener() {
+			@Override
+			public void processPacket(Packet packet) {
+				Message message = (Message) packet;
+				processMessage(message);
+			}
+		};
+
+		xmppConnection.addPacketListener(pl, new PacketTypeFilter(
+				Message.class));
+
+	}
+	
+	protected void processMessage(Message message) {
+		if (message.getFrom() != null) {
+			String fromName = StringUtils.parseBareAddress(message
+					.getFrom());
+			String currentUser = StringUtils
+					.parseBareAddress(xmppConnection.getUser());
+			if (currentUser.equals(fromName)) {
+				return;
+			}
+		}
+		if (message.getBody() != null) {
+			String fromName = StringUtils.parseBareAddress(message
+					.getFrom());
+			Log.i(TAG, "Got text [" + message.getBody() + "] from ["
+					+ fromName + "]");
+
+			Intent i = new Intent(CHAT_ACTION_RECEIVED_MESSAGE);
+			i.putExtra(XMPP_MESSAGE,
+					fromName + " says: " + message.getBody());
+
+			android.os.Message newMessage = android.os.Message.obtain();
+			newMessage.obj = i;
+			if (activityMessenger != null) {
+				try {
+					activityMessenger.send(newMessage);
+				} catch (RemoteException e) {
+					Log.e(TAG,
+							"PACKET RECEIVED SENDING PROBLEM SENDING MESSAGE BACK TO ACTIVITY",
+							e);
+				}
+			} else {
+				throw new NullPointerException(
+						"ACTIVITY MESSAGER WENT AWAY -> NULL");
+			}
+		} else {
+			// Log.i(TAG, packet.toXML());
 		}
 	}
 
@@ -147,61 +229,10 @@ public class XmppService extends IntentService {
 				connectionConfiguration.setTruststorePath(null);
 			}
 			xmppConnection = new XMPPConnection(connectionConfiguration);
-
-			PacketFilter filter = new MessageTypeFilter(Message.Type.chat);
-			xmppConnection.addPacketListener(new PacketListener() {
-				public void processPacket(Packet packet) {
-					Message message = (Message) packet;
-					if (message.getFrom() != null) {
-						String fromName = StringUtils.parseBareAddress(message
-								.getFrom());
-						String currentUser = StringUtils
-								.parseBareAddress(xmppConnection.getUser());
-						if (currentUser.equals(fromName)) {
-							return;
-						}
-					}
-					if (message.getBody() != null) {
-						String fromName = StringUtils.parseBareAddress(message
-								.getFrom());
-						Log.i(TAG, "Got text [" + message.getBody()
-								+ "] from [" + fromName + "]");
-
-						Intent i = new Intent(CHAT_ACTION_RECEIVED_MESSAGE);
-						i.putExtra(XMPP_MESSAGE,
-								fromName + " says: " + message.getBody());
-
-						android.os.Message newMessage = android.os.Message
-								.obtain();
-						newMessage.obj = i;
-						if (activityMessenger != null) {
-							try {
-								activityMessenger.send(newMessage);
-							} catch (RemoteException e) {
-								Log.e(TAG,
-										"PACKET RECEIVED SENDING PROBLEM SENDING MESSAGE BACK TO ACTIVITY",
-										e);
-							}
-						} else {
-							throw new NullPointerException(
-									"ACTIVITY MESSAGER WENT AWAY -> NULL");
-						}
-					} else {
-						// Log.i(TAG, packet.toXML());
-					}
-				}
-			}, filter);
-
 			try {
 				xmppConnection.connect();
-				android.os.Message obtainMessage = connectionHandler
-						.obtainMessage();
-
-				connectionHandler.sendMessage(obtainMessage);
 			} catch (final XMPPException e) {
 				Log.e(TAG, "Could not connect to Xmpp server.", e);
-				showToast("CONNECTION FAILED XMPP SERVICE");
-				return;
 			}
 		}
 	}
@@ -211,9 +242,7 @@ public class XmppService extends IntentService {
 			try {
 				xmppConnection.login(USERNAME, PASSWORD);
 			} catch (XMPPException e) {
-				showToast("LOGIN FAILED: " + USERNAME + " " + PASSWORD);
 				Log.e(TAG, "Could not login into xmpp server.", e);
-				e.printStackTrace();
 			}
 		}
 	}

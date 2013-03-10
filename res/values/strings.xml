@@ -7,5 +7,11 @@
     <string name="title_section1">Section 1</string>
     <string name="title_section2">Section 2</string>
     <string name="title_section3">Section 3</string>
+     <string name="xmpp_prefs">XMPP_PREFS</string>
+   <string name="user_name">USER_NAME</string>
+   <string name="xmpp_host">54.243.60.48</string>
+   <string name="XMPP_HOST_KEY">xmpp_host_key</string>
+   <string name="XMPP_PORT">XMPP_PORT</string>
+   <string name="XMPP_CHAT_ROOM">android-test@conference.54.243.60.48</string>
 
 </resources>

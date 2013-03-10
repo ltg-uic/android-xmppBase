@@ -62,9 +62,12 @@ public class MainActivity extends FragmentActivity {
 			Tab1Fragment tab1 = (Tab1Fragment) getFragmentManager()
 					.findFragmentByTag("TAB1");
 			tab1.updateUI(stringExtra);
+			
 			Tab2Fragment tab2 = (Tab2Fragment) getFragmentManager()
 					.findFragmentByTag("TAB2");
-			tab2.updateUI(stringExtra);
+			if( tab2 != null ) {
+				tab2.updateUI(stringExtra);
+			}
 
 		}
 	}
@@ -85,12 +88,14 @@ public class MainActivity extends FragmentActivity {
 		Intent intent = new Intent(this, XmppService.class);
 		intent.setAction(XmppService.CONNECT);
 		intent.putExtra(XmppService.ACTIVITY_MESSAGER, activityMessenger);
+		intent.putExtra(XmppService.CHAT_TYPE, XmppService.GROUP_CHAT);
+		intent.putExtra(XmppService.GROUP_CHAT_NAME, getString(R.string.XMPP_CHAT_ROOM));
 		startService(intent);
 	}
 
 	public void sendXmppMessage(String text) {
 		Intent intent = new Intent();
-		intent.setAction(XmppService.SEND_MESSAGE);
+		intent.setAction(XmppService.SEND_MESSAGE_CHAT);
 		intent.putExtra(XmppService.MESSAGE_TEXT_CHAT, text);
 		Message newMessage = Message.obtain();
 		newMessage.obj = intent;
