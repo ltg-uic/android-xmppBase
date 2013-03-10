@@ -16,7 +16,9 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.os.Messenger;
+import android.os.RemoteException;
 import android.support.v4.app.FragmentActivity;
+import android.util.Log;
 import android.view.Gravity;
 import android.widget.Toast;
 
@@ -34,27 +36,36 @@ public class MainActivity extends FragmentActivity {
 	private static final String TAG = "MainActivity";
 
 	private ActionBar actionBar;
-	
+
 	private Handler handler = new Handler() {
 		public void handleMessage(Message message) {
-			Object path = message.obj;
-			Toast.makeText(MainActivity.this, "GOT MESSAGE FROM SERVICES",
-					Toast.LENGTH_LONG).show();
+			Intent intent = (Intent) message.obj;
+			if (intent != null) {
+				if (intent.getAction().equals(
+						XmppService.CHAT_ACTION_RECEIVED_MESSAGE)) {
+					receiveIntent(intent);
+				}
+			}
 
 		};
 	};
-	
+	private Messenger activityMessenger;
+
 	public void receiveIntent(Intent intent) {
-		if( intent != null ) {
-			String stringExtra = intent.getStringExtra(XmppService.XMPP_MESSAGE);
+		if (intent != null) {
+			String stringExtra = intent
+					.getStringExtra(XmppService.XMPP_MESSAGE);
 			makeToast("MESSAGE RECEIVE: :" + stringExtra);
-			
-			//fragments need  to be select at least once for them to be included in the fragment manager
-			Tab1Fragment tab1 = (Tab1Fragment) getFragmentManager().findFragmentByTag("TAB1");
+
+			// fragments need to be select at least once for them to be included
+			// in the fragment manager
+			Tab1Fragment tab1 = (Tab1Fragment) getFragmentManager()
+					.findFragmentByTag("TAB1");
 			tab1.updateUI(stringExtra);
-			Tab2Fragment tab2 = (Tab2Fragment) getFragmentManager().findFragmentByTag("TAB2");
+			Tab2Fragment tab2 = (Tab2Fragment) getFragmentManager()
+					.findFragmentByTag("TAB2");
 			tab2.updateUI(stringExtra);
-			
+
 		}
 	}
 
@@ -70,15 +81,20 @@ public class MainActivity extends FragmentActivity {
 		setupTabs();
 
 		// XMPP bind
-		Messenger messenger = new Messenger(handler);
+		activityMessenger = new Messenger(handler);
 		Intent intent = new Intent(this, XmppService.class);
-		intent.putExtra("MESSENGER", messenger);
-		intent.setData(Uri.parse("http://www.vogella.com/index.html"));
+		intent.setAction(XmppService.CONNECT);
+		intent.putExtra(XmppService.ACTIVITY_MESSAGER, activityMessenger);
 		startService(intent);
+	}
 
-		IntentFilter intentFilter = new IntentFilter(
-				XmppService.CHAT_ACTION_INTENT);
-		registerReceiver(broadcastReciever, intentFilter);
+	public void sendXmppMessage(String text) {
+		Intent intent = new Intent();
+		intent.setAction(XmppService.SEND_MESSAGE);
+		intent.putExtra(XmppService.MESSAGE_TEXT_CHAT, text);
+		Message newMessage = Message.obtain();
+		newMessage.obj = intent;
+		XmppService.sendToServiceHandler(intent);
 	}
 
 	private void setupTabs() {
@@ -92,9 +108,9 @@ public class MainActivity extends FragmentActivity {
 				.setTabListener(
 						new TabListener<Tab1Fragment>(this, "TAB1",
 								Tab1Fragment.class));
-		
+
 		actionBar.addTab(tab);
-		
+
 		tab = actionBar
 				.newTab()
 				.setText("TAB 2")
