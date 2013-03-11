@@ -60,6 +60,8 @@ public class MainActivity extends FragmentActivity {
 
 		};
 	};
+	private MenuItem connectMenu;
+	private MenuItem disconnectMenu;
 
 	public void receiveIntent(Intent intent) {
 		if (intent != null) {
@@ -198,6 +200,10 @@ public class MainActivity extends FragmentActivity {
 	public boolean onCreateOptionsMenu(Menu menu) {
 		// Inflate the menu; this adds items to the action bar if it is present.
 		getMenuInflater().inflate(R.menu.activity_main, menu);
+		
+		connectMenu = menu.getItem(0);
+		disconnectMenu = menu.getItem(1);
+		disconnectMenu.setEnabled(false);
 		return true;
 	}
 
@@ -207,8 +213,12 @@ public class MainActivity extends FragmentActivity {
 		switch (item.getItemId()) {
 		case R.id.menu_connect:
 			prepDialog().show();
+			connectMenu.setEnabled(false);
+			disconnectMenu.setEnabled(true);
 			return true;
 		case R.id.menu_disconnect:
+			connectMenu.setEnabled(true);
+			disconnectMenu.setEnabled(false);
 			Intent intent = new Intent();
 			intent.setAction(XmppService.DISCONNECT);
 			Message newMessage = Message.obtain();
