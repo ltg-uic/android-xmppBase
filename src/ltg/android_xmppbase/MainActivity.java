@@ -36,7 +36,6 @@ public class MainActivity extends FragmentActivity {
 	 * current tab position.
 	 */
 	private static final String STATE_SELECTED_NAVIGATION_ITEM = "selected_navigation_item";
-	private XmppServiceBroadcastReceiver broadcastReciever = new XmppServiceBroadcastReceiver();
 
 	private static final String TAG = "MainActivity";
 	private Messenger activityMessenger;
@@ -44,6 +43,9 @@ public class MainActivity extends FragmentActivity {
 
 	private ActionBar actionBar;
 
+	private MenuItem connectMenu;
+	private MenuItem disconnectMenu;
+	
 	private Handler handler = new Handler() {
 		public void handleMessage(Message message) {
 			Intent intent = (Intent) message.obj;
@@ -60,8 +62,7 @@ public class MainActivity extends FragmentActivity {
 
 		};
 	};
-	private MenuItem connectMenu;
-	private MenuItem disconnectMenu;
+
 
 	public void receiveIntent(Intent intent) {
 		if (intent != null) {
@@ -87,17 +88,19 @@ public class MainActivity extends FragmentActivity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		
-		SmackAndroid.init(this);
 		setContentView(R.layout.activity_main);
-
+		initXmppService();
 		hardcodedUserNameXMPP();
 		// Set up the action bar to show tabs.
 		actionBar = getActionBar();
 		actionBar.setBackgroundDrawable(new ColorDrawable(Color.BLACK));
 		actionBar.setNavigationMode(ActionBar.NAVIGATION_MODE_TABS);
 		setupTabs();
-
+	}
+	
+	public void initXmppService() {
+		SmackAndroid.init(this);
+		
 		// XMPP bind
 		activityMessenger = new Messenger(handler);
 		Intent intent = new Intent(MainActivity.this,
@@ -110,7 +113,6 @@ public class MainActivity extends FragmentActivity {
 		intent.putExtra(XmppService.GROUP_CHAT_NAME,
 				getString(R.string.XMPP_CHAT_ROOM));
 		startService(intent);
-
 	}
 	
 	public AlertDialog prepDialog() {
